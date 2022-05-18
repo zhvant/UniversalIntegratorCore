@@ -1,0 +1,73 @@
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using SBAST.UniversalIntegrator.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.Serialization;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SBAST.UniversalIntegrator.Configs
+{
+    public class Module
+    {
+        public string ModuleName { get; set; }
+        public ModuleTypeEnum ModuleType { get; set; }
+        public string Interval { get; set; }
+        [JsonIgnore]
+        public ModuleParameters Parameters { get; set; }
+
+        [JsonExtensionData]
+#pragma warning disable IDE0044 // Добавить модификатор только для чтения
+        private IDictionary<string, JToken> _additionalData = new Dictionary<string, JToken>();
+#pragma warning restore IDE0044 // Добавить модификатор только для чтения
+
+        [OnDeserialized]
+        private void OnDeserialized(StreamingContext context)
+        {
+            var pm = _additionalData["Parameters"];
+            switch (ModuleType)
+            {
+                case ModuleTypeEnum.FtpDownloader:
+                    Parameters = pm.ToObject<FtpDownloaderParameters>();
+                    break;
+                case ModuleTypeEnum.DBParser:
+                    Parameters = pm.ToObject<DBParserParameters>();
+                    break;
+                case ModuleTypeEnum.UnArchiver:
+                    var prms = pm.ToObject<UnArchiverParameters>();
+                    prms.ConverterParameters = GetConverterParameters(pm);
+                    Parameters = prms;
+                    break;
+                case ModuleTypeEnum.TestModule:
+                    Parameters = pm.ToObject<TestModuleParameters>();
+                    break;
+                case ModuleTypeEnum.FtpSingleFileDownloader:
+                    Parameters = pm.ToObject<FtpSingleFileDownloaderParameters>();
+                    break;
+                case ModuleTypeEnum.DBParserPlan:
+                    Parameters = pm.ToObject<DBParserPlanParameters>();
+                    break;
+            }
+        }
+
+        private ConverterParameters GetConverterParameters(JToken token)
+        {
+            var pm = token["Converter"];
+            if (pm == null)
+                return new ConverterParameters();
+            var converterParams = pm.ToObject<ConverterParameters>();
+
+            switch (converterParams.FileFormat)
+            {
+                default:
+                case FileFormatEnum.Undefined:
+                case FileFormatEnum.Xml:
+                    return pm.ToObject<ConverterParameters>();
+                case FileFormatEnum.Csv:
+                    return pm.ToObject<CsvToXmlParameters>();
+            }
+        }
+    }
+}

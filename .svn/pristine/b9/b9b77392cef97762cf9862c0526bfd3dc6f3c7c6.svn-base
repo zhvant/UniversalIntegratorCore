@@ -1,0 +1,15 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SBAST.UniversalIntegrator.Configs
+{
+    public abstract class ModuleParameters
+    {
+        public string ConnectionString { get; set; }
+        public string ConnectionStringPlan { get; set; }
+        public int ConnectionTimeout { get; set; }
+    }
+}

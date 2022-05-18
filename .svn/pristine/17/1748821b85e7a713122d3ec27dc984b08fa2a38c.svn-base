@@ -1,0 +1,63 @@
+﻿using SBAST.UniversalIntegrator.Models;
+
+namespace SBAST.UniversalIntegrator.DB
+{
+    public interface IFilesRepository
+    {
+        /// <summary>
+        /// Проверяем файл на существование по имени + md5 иначе возвращаем 0
+        /// </summary>
+        /// <param name="fileName">Имя файла</param>
+        /// <param name="checkSum">md5</param>
+        int FindFile(string fileName, string checkSum);
+
+        /// <summary>
+        /// Обновляем статус файла
+        /// </summary>
+        /// <param name="IdFile">Ид файла</param>
+        /// <param name="status">Статус</param>
+        /// <param name="statusMessage">Комментарий к статусу</param>
+        void UpdateFileStatus(int IdFile, FileLoadStatusEnum status, string statusMessage = "");
+
+        /// <summary>
+        /// Обновляет статус файла, а так же увеличивается счётчик кол-ва итераций
+        /// </summary>
+        /// <param name="idFile">Ид файла</param>
+        /// <param name="status">Статус</param>
+        /// <param name="statusMessage">Комментарий к статусу</param>
+        void UpdateFileStatusWithCount(int idFile, FileLoadStatusEnum status, string statusMessage = "");
+
+        /// <summary>
+        /// Отправлем xml в для парсинга
+        /// </summary>
+        /// <param name="fileName">Имя файла</param>
+        /// <param name="unzippedFile">Тело файла</param>
+        /// <param name="idFile">ID файла из таблицы UnIntFileLoad (IdLoad) </param>
+        void ProcessFile(string fileName, string unzippedFile, int idFile);
+
+        /// <summary>
+        /// Отправлем xml в для парсинга
+        /// </summary>
+        /// <param name="fileName">Имя файла</param>
+        /// <param name="unzippedFile">Тело файла</param>
+        /// <param name="idFile">ID файла из таблицы UnIntFileLoad (IdLoad) </param>
+        void ProcessFilePlan(string fileName, string unzippedFile, int idFile);
+
+        /// <summary>
+        /// Сохраняем файл если уже существует то апдейтим по имени + md5
+        /// </summary>
+        /// <param name="idArchive">ИД Архива</param>
+        /// <param name="fileName">Имя файла</param>
+        /// <param name="fileBody">Тело файла</param>
+        /// <param name="entityType">Тип сущности</param>
+        /// <param name="checkSum">md5</param>
+        int SaveFile(int idArchive, string fileName, string fileBody, string entityType, string checkSum);
+
+		/// <summary>
+		/// Список не обработанных файлов
+		/// </summary>
+		/// <param name="entityType">Тип сущности</param>
+		/// <param name="batchSize">Размер батча</param>
+		FileModel[] GetUnProcessedFiles(string fileType, int batchSize = 0);
+    }
+}

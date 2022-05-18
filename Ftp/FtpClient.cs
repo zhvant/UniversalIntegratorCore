@@ -1,0 +1,177 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+
+namespace SBAST.UniversalIntegrator.Ftp
+{
+    /// <summary>
+    /// Фтп клиент
+    /// </summary>
+    public class FtpClient : IFtpClient
+    {
+        readonly string _ftpPassword;
+        readonly string _ftpLogin;
+        readonly string _ftpAddress;
+        readonly int _bufferSize = 1024;
+
+        public bool Passive = true;
+        public bool Binary = true;
+        public bool EnableSsl = false;
+        public bool Hash = false;
+
+        public DateTime LastFtpAccess { get; set; }
+
+        public FtpClient(string ftpAddress, string ftpLogin, string ftpPassword)
+        {
+            _ftpAddress = ftpAddress.StartsWith(@"ftp:\\", StringComparison.CurrentCultureIgnoreCase) ? ftpAddress : $@"ftp:\\{ftpAddress}";
+            _ftpLogin = ftpLogin;
+            _ftpPassword = ftpPassword;
+        }
+
+        /// <summary>
+        /// Метод для скачивания с фтп в папку
+        /// </summary>
+        /// <param name="source">Файл на фтп</param>
+        /// <param name="dest">Локальна папка</param>
+        /// <returns>Статус операции</returns>
+        public string DownloadFile(string source, string dest)
+        {
+            var request = CreateRequest(Combine(_ftpAddress, source), WebRequestMethods.Ftp.DownloadFile);
+
+            byte[] buffer = new byte[_bufferSize];
+
+            using (var response = (FtpWebResponse)request.GetResponse())
+            {
+                using (var stream = response.GetResponseStream())
+                {
+                    using (var fs = new FileStream(dest, FileMode.OpenOrCreate))
+                    {
+                        int readCount = stream.Read(buffer, 0, _bufferSize);
+
+                        while (readCount > 0)
+                        {
+                            if (Hash)
+                                Console.Write("#");
+
+                            fs.Write(buffer, 0, readCount);
+                            readCount = stream.Read(buffer, 0, _bufferSize);
+                        }
+                    }
+                }
+
+                return response.StatusDescription;
+            }
+        }
+
+        /// <summary>
+        /// Получаем размер файла
+        /// </summary>
+        /// <param name="fileName">Имя файла</param>
+        /// <returns>Размер</returns>
+        public long GetFileSize(string fileName)
+        {
+            var request = CreateRequest(Combine(_ftpAddress, fileName), WebRequestMethods.Ftp.GetFileSize);
+
+            using (var response = (FtpWebResponse)request.GetResponse())
+            {
+                return response.ContentLength;
+            }
+        }
+        /// <summary>
+        /// Получаем дату модификации файла
+        /// </summary>
+        /// <param name="fileName">Имя файла</param>
+        /// <returns>Размер</returns>
+        public DateTime GetFileLastModified(string fileName)
+        {
+            var request = CreateRequest(Combine(_ftpAddress, fileName), WebRequestMethods.Ftp.GetDateTimestamp);
+
+            using (var response = (FtpWebResponse)request.GetResponse())
+            {
+                return response.LastModified;
+            }
+        }
+
+        /// <summary>
+        /// Список файлов и папок на Фтп
+        /// </summary>
+        /// <param name="folderPath">Путь на фтп</param>
+        /// <returns>Список файлов и папок</returns>
+        public string[] ListDirectory(string folderPath = "")
+        {
+            var list = new List<string>();
+
+            var request = CreateRequest(Combine(_ftpAddress, folderPath), WebRequestMethods.Ftp.ListDirectory);
+
+            using (var response = (FtpWebResponse)request.GetResponse())
+            {
+                using (var stream = response.GetResponseStream())
+                {
+                    using (var reader = new StreamReader(stream, true))
+                    {
+                        while (!reader.EndOfStream)
+                        {
+                            list.Add(reader.ReadLine());
+                        }
+                    }
+                }
+            }
+
+            return list.ToArray();
+        }
+        /// <summary>
+        /// Список файлов и папок на фтп более подробный
+        /// </summary>
+        /// <param name="folderPath">Путь на фтп</param>
+        /// <returns>Список файлов и папок</returns>
+        public string[] ListDirectoryDetails(string folderPath = "")
+        {
+            var list = new List<string>();
+
+            var request = CreateRequest(Combine(_ftpAddress, folderPath), WebRequestMethods.Ftp.ListDirectoryDetails);
+
+            using (var response = (FtpWebResponse)request.GetResponse())
+            {
+                using (var stream = response.GetResponseStream())
+                {
+                    using (var reader = new StreamReader(stream, true))
+                    {
+                        while (!reader.EndOfStream)
+                        {
+                            list.Add(reader.ReadLine());
+                        }
+                    }
+                }
+            }
+
+            return list.ToArray();
+        }
+       
+        /// <summary>
+        /// Создаем запрос к фтп
+        /// </summary>
+        /// <param name="uri">URI</param>
+        /// <param name="method">Метод</param>
+        /// <returns></returns>
+        private FtpWebRequest CreateRequest(string uri, string method)
+        {
+            var r = (FtpWebRequest)WebRequest.Create(uri);
+
+            r.Credentials = new NetworkCredential(_ftpLogin, _ftpPassword);
+            r.Method = method;
+            r.UseBinary = Binary;
+            r.EnableSsl = EnableSsl;
+            r.UsePassive = Passive;
+
+            return r;
+        }
+
+        private static string Combine(string path1, string path2)
+        {
+            return Path.Combine(path1, path2.TrimStart('/')).Replace("\\", "/");
+        }
+
+    }
+}

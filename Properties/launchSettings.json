@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "UniversalIntegratorCore": {
+      "commandName": "Project",
+      "sqlDebugging": true
+    },
+    "WSL": {
+      "commandName": "WSL2",
+      "environmentVariables": {},
+      "distributionName": ""
+    },
+    "Docker": {
+      "commandName": "Docker"
+    }
+  }
+}

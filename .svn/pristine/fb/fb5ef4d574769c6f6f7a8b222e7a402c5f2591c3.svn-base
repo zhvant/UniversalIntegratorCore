@@ -1,0 +1,86 @@
+{
+  "Modules": [
+    //{
+    //  "ModuleName": "purchaseNoticeDownloadModule",
+    //  "ModuleType": "FtpDownloader",
+    //  "Interval": "0 0/1 * * * ?",
+    //  "Parameters": {
+    //    "FtpAddress": "ftp.zakupki.gov.ru",
+    //    "FtpLogin": "fz223free",
+    //    "FtpPassword": "fz223free",
+    //    "ftpDownloadFolderIgnoreList": [ "archive", "ast", "undefined", "control99docs" ],
+    //    //"FtpDownloadFolder": "/out/published/*/purchaseNotice*/daily/",
+    //    "FtpDownloadFolder": "/out/published/Tverskaya_obl/purchaseNoticeEP/daily/",
+    //    "ConnectionString": "Data Source=192.168.1.211\\SQL2008R2;Initial Catalog=OOSDocs223;User ID=usrProto;Password=pswProto;",
+    //    "DownloadFolder": "C:\\Temp\\tmp",
+    //    "downloadInTheLastDays": 30
+    //  }
+    //},
+    {
+      "ModuleName": "bankGuaranteeDownloadModule",
+      "ModuleType": "FtpDownloader",
+      "Interval": "0 0/1 * * * ?",
+      "Parameters": {
+        "FtpAddress": "ftp.zakupki.gov.ru",
+        "FtpLogin": "etp_bg",
+        "FtpPassword": "6vtPMIZtv0IZtNjn",
+        "ftpDownloadFolderIgnoreList": [],
+        "FtpDownloadFolder": "\\*\\",
+        "ConnectionString": "Data Source=192.168.1.211\\SQL2008R2;Initial Catalog=OOSDocs223;User ID=usrProto;Password=pswProto;",
+        "DownloadFolder": "C:\\Temp\\tmp\\bankGuarantee",
+        "regexPatternByDate": "(.+?)_(?<year>\\d{4}).(?<month>\\d{1,2}).(.+?)\\s?$",
+        "downloadInTheLastDays": 31,
+        "FolderStructure": "copy"
+      }
+    },
+    {
+      "ModuleName": "bankGuaranteeUnArchiverModule",
+      "ModuleType": "UnArchiver",
+      "Interval": "0 0/1 * * * ?",
+      "Parameters": {
+        "ConnectionString": "Data Source=192.168.1.211\\SQL2008R2;Initial Catalog=OOSDocs223;User ID=usrProto;Password=pswProto;",
+        "connectionTimeout": 90,
+        "FolderFrom": "C:\\Temp\\tmp\\bankGuarantee",
+        "FolderStructure": "copy",
+        "EntityTypeFromFilename": "(?<entityType>.+)[.][a-zA-Z0-9]+\\s?$",
+        "Converter": {
+          "FileFormat": "csv",
+          "TagCase": "lower",
+          "Delimeter": "\t",
+          "HasHeaders": true,
+          "RootTagFromFilename": "(?<rootTag>.+)[.][a-zA-Z0-9]+\\s?$"
+        }
+      }
+    },
+    //{
+    //  "ModuleName": "bankGuaranteeParserModule",
+    //  "ModuleType": "DBParser",
+    //  "Interval": "0 0/1 * * * ?",
+    //  "Parameters": {
+    //    "ConnectionString": "data source=192.168.1.211\\sql2008r2;initial catalog=oosdocs223;user id=usrproto;password=pswproto;",
+    //    "Connectiontimeout": 90,
+    //    "ParsingProcedure": "",
+    //    "FilesGetProcedure": "",
+    //    "EntityType": ""
+    //  }
+    //},
+    // Пример модуля для скачивания отдельных файлов
+    //{
+    //  "ModuleName": "singleFileDownloadModule",
+    //  "ModuleType": "FtpSingleFileDownloader",
+    //  "Interval": "0/40 * * * * ?",
+    //  "Parameters": {
+    //    "FtpAddress": "ftp.zakupki.gov.ru",
+    //    "FtpLogin": "fz223free",
+    //    "FtpPassword": "fz223free",
+    //    "ConnectionString": "Data Source=192.168.1.211\\SQL2008R2;Initial Catalog=OOSDocs223;User ID=usrProto;Password=pswProto;",
+    //    "DownloadFolder": "C:\\Temp\\tmp",
+    //    "FtpDownloadFileList": [
+    //      "/out/nsi/agencyRelations/daily/agencyRelations_inc_20181231_000000_001.xml.zip",
+    //      "/out/nsi/agencyRelations/daily/agencyRelations_inc_20180503_000000_001.xml.zip",
+    //      "/out/hourlyPublished/notice_stat.csv"
+    //    ]
+    //  }
+    //}
+  ]
+}

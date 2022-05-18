@@ -1,0 +1,87 @@
+﻿using SBAST.UniversalIntegrator.DB;
+using SBAST.UniversalIntegrator.Helpers;
+using SBAST.UniversalIntegrator.Models;
+using NLog;
+using System;
+using System.Collections.Generic;
+using System.Data.SqlClient;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SBAST.UniversalIntegrator.Services
+{
+    /// <summary>
+    /// Сервис для парсинга файлов
+    /// </summary>
+    class ParserService : IParserService
+    {
+        private readonly IFilesRepository _serviceDBHelper;
+        private readonly List<string> _entityType;
+        private readonly ILogger _logger;
+        private readonly int _batchSize;
+        private readonly ISignVerificationService _signVerificationService;
+
+        public ParserService(IFilesRepository serviceDBHelper, 
+            string entityType, 
+            ILogger logger, 
+            ISignVerificationService signVerificationService,
+            int batchSize)
+        {
+            _serviceDBHelper = serviceDBHelper;
+			_entityType = entityType.Split(',').ToList<string>();
+            _logger = logger;
+            _batchSize = batchSize;
+            _signVerificationService = signVerificationService;
+        }
+        /// <summary>
+        /// Входной метод для парсинга файлов. Забирает @_batchSize необработанных файлов и отправляет их в процедуру для парсинга
+        /// </summary>
+        public void ProcessFiles()
+        {
+			foreach (string et in _entityType)
+			{
+				_serviceDBHelper.GetUnProcessedFiles(et, _batchSize).ForEach(file =>
+				{
+					try
+					{
+						_logger.Info($"Start parse file {file.FileName}");
+						_serviceDBHelper.UpdateFileStatus(file.IdFile, FileLoadStatusEnum.InProgress);
+						if (!_signVerificationService.Verify(file.FileBody))
+						{
+							_logger.Warn($"Sign of {file.FileName} is not valid");
+							_serviceDBHelper.UpdateFileStatus(file.IdFile, FileLoadStatusEnum.SignIsNotValid);
+							return;
+						}
+						if (et == "purchasePlan")
+						{
+							var startime = DateTime.Now;
+							_logger.Info($"File {file.FileName} processed. Start: {startime}");
+							_serviceDBHelper.ProcessFilePlan(file.FileName, file.FileBody, file.IdFile);
+							var endTime = DateTime.Now;
+							var tim = endTime - startime;
+							_logger.Info($"File {file.FileName} processed. End: {endTime}, Runtime: {tim}");
+						}
+						else
+							_serviceDBHelper.ProcessFile(file.FileName, file.FileBody, file.IdFile);
+						_serviceDBHelper.UpdateFileStatus(file.IdFile, FileLoadStatusEnum.Processed);
+						_logger.Info($"File {file.FileName} processed");
+					}
+					catch (SqlException ex)
+					{
+						if (ex.Errors[0].Class == 11)  //RAISEERROR(@ErrorMsg, 11, 1)
+						_serviceDBHelper.UpdateFileStatusWithCount(file.IdFile, FileLoadStatusEnum.Repeat, ex.Message);
+						else
+							_serviceDBHelper.UpdateFileStatus(file.IdFile, FileLoadStatusEnum.Error, ex.Message);
+						_logger.Error($"Error when parsing file {file.FileName} \n {ex}");
+					}
+					catch (Exception ex)
+					{
+						_serviceDBHelper.UpdateFileStatus(file.IdFile, FileLoadStatusEnum.Error);
+						_logger.Error($"Error when parsing file {file.FileName} \n {ex}");
+					}
+				});
+			}
+        }
+    }
+}

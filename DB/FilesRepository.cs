@@ -1,0 +1,244 @@
+﻿using Dapper;
+using SBAST.UniversalIntegrator.Models;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.SqlClient;
+using System.Linq;
+using System.Xml;
+using System;
+using System.Text;
+using System.IO;
+
+
+namespace SBAST.UniversalIntegrator.DB
+{
+    /// <summary>
+    /// Репозиторий для работы с разархивирванными файлами
+    /// </summary>
+    public class FilesRepository : IFilesRepository
+    {
+        private readonly string _connectionString;
+        private readonly int _connectionTimeout;
+        private readonly string _parsingProcedure;
+        //private readonly string _parsingProcedurePlan;
+        //private readonly string _parsingProcedurePosition;
+        private readonly string _filesGetProcedure;
+        //private readonly string _connectionStringPlan;
+
+        //public FilesRepository(string connectionString, int connectionTimeout, string parsingProcedure, string filesGetProcedure)
+        //{
+        //    _connectionString = connectionString;
+        //    _connectionTimeout = connectionTimeout;
+        //    _parsingProcedure = parsingProcedure;
+        //    _filesGetProcedure = filesGetProcedure;
+        //}
+        public FilesRepository(string connectionString, /*string connectionStringPlan,*/ int connectionTimeout, string parsingProcedure,/* string parsingProcedurePlan, string parsingProcedurePosition,*/ string filesGetProcedure)
+        {
+            _connectionString = connectionString;
+            _connectionTimeout = connectionTimeout;
+            _parsingProcedure = parsingProcedure;
+            //_parsingProcedurePlan = parsingProcedurePlan;
+            //_parsingProcedurePosition = parsingProcedurePosition;
+            _filesGetProcedure = filesGetProcedure;
+            //_connectionStringPlan = connectionStringPlan;
+        }
+
+        /// <summary>
+        /// Отправлем xml в процедуру для парсинга
+        /// </summary>
+        /// <param name="fileName">Имя файла</param>
+        /// <param name="unzippedFile">Тело файла</param>
+        /// <param name="idFile">ID файла из таблицы UnIntFileLoad (IdLoad) </param>
+        public void ProcessFile(string fileName, string unzippedFile, int idFile)
+        {
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                var p = new DynamicParameters();
+                p.Add("@FileName", fileName);
+                p.Add("@data", unzippedFile);
+                p.Add("@IdLoad", idFile);
+
+                var res = connection.Execute(_parsingProcedure, p, commandType: CommandType.StoredProcedure, commandTimeout: _connectionTimeout);
+            }
+        }
+
+        //public void ProcessFilePlan(string fileName, string unzippedFile, int idFile)
+        //{
+        //    string _guid = null;
+        //    using (var xmlReaderPlan = XmlReader.Create(new StringReader(unzippedFile)))
+        //    {
+        //        while (xmlReaderPlan.Read())
+        //        {
+        //            if (xmlReaderPlan.ReadToFollowing("purchasePlanData"))
+        //            {
+        //                xmlReaderPlan.ReadToFollowing("guid");
+        //                _guid = xmlReaderPlan.ReadElementContentAsString();
+        //            }
+        //        }
+        //    }
+            //using (var xmlReader = XmlReader.Create(new StringReader(unzippedFile)))
+            //{
+            //    while (xmlReader.Read())
+            //    {
+            //        if (xmlReader.ReadToFollowing("purchasePlanItem"))
+            //        {
+            //            XmlReader position = xmlReader.ReadSubtree();
+            //            WriteElement(position, _guid, _parsingProcedurePosition);
+            //        }
+            //    }
+            // }
+        //    using (var xmlReaderPlan = XmlReader.Create(new StringReader(unzippedFile)))
+        //    {
+        //        while (xmlReaderPlan.Read())
+        //        {
+        //            if (xmlReaderPlan.ReadToFollowing("purchasePlanData"))
+        //            {
+        //                XmlReader plan = xmlReaderPlan.ReadSubtree();
+        //                WriteElement(plan, _guid, _parsingProcedurePlan);
+        //            }
+        //        }
+        //    }
+        //}
+
+        //public void WriteElement(XmlReader xmlReader, string _guid, string filesProcedure)
+        //{
+        //    xmlReader.MoveToContent();
+        //    StringBuilder stringBuilder = new StringBuilder();
+        //    using (XmlWriter xmlWriter = XmlWriter.Create(stringBuilder))
+        //    {
+        //        xmlWriter.WriteNode(xmlReader, false);
+        //    }
+        //    using (var connection = new SqlConnection(_connectionStringPlan))
+        //    {
+        //        var p = new DynamicParameters();
+        //        p.Add("@data", stringBuilder.ToString());
+        //        p.Add("@guid", _guid);
+
+        //        var res = connection.Execute(filesProcedure, p, commandType: CommandType.StoredProcedure, commandTimeout: _connectionTimeout);
+        //    }
+        //}
+
+        /// <summary>
+        /// Сохраняем файл если уже существует то апдейтим по имени + md5
+        /// </summary>
+        /// <param name="idArchive">ИД Архива</param>
+        /// <param name="fileName">Имя файла</param>
+        /// <param name="fileBody">Тело файла</param>
+        /// <param name="entityType">Тип сущности</param>
+        /// <param name="checkSum">md5</param>
+		public int SaveFile(int idArchive, string fileName, string fileBody, string entityType, string checkSum)
+		{
+			using (var connection = new SqlConnection(_connectionString))
+			{
+				return connection.Query<int>
+                    (
+                        @"MERGE dbo.UnIntFileLoad AS target  
+                        USING(values(@IdArchive, @FileName, @LoadStatus, @FileBody, @EntityType, @CheckSum)) AS source(IdArchive, FileName, LoadStatus, FileBody, EntityType, CheckSum)
+                        ON(target.FileName = source.FileName and target.CheckSum = source.CheckSum)
+                        WHEN MATCHED THEN 
+                           UPDATE SET LoadStatus = source.LoadStatus, FileBody = source.FileBody, EntityType = source.EntityType, UpdateDate = getdate()
+                        WHEN NOT MATCHED THEN
+                          INSERT(FileName, IdArchive, LoadStatus, FileBody, EntityType, CheckSum)
+                           VALUES(source.FileName, source.IdArchive, source.LoadStatus, source.FileBody, source.EntityType, source.CheckSum)
+                        output inserted.IdLoad; ",
+					    new
+					    {
+						    IdArchive = idArchive,
+						    FileName = fileName,
+						    LoadStatus = (int)FileLoadStatusEnum.Downloaded,
+						    FileBody = fileBody,
+						    EntityType = entityType,
+						    CheckSum = checkSum
+					    },
+                       commandTimeout: _connectionTimeout
+                    ).First();
+			}
+		}
+
+		/// <summary>
+		/// Список не обработанных файлов
+		/// </summary>
+		/// <param name="entityType">Тип сущности</param>
+		/// <param name="batchSize">Размер батча</param>
+		public FileModel[] GetUnProcessedFiles(string entityType, int batchSize = 0)
+        {
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                return connection.Query<FileModel>(_filesGetProcedure, new { EntityType = entityType, batchSize }, commandType: CommandType.StoredProcedure, commandTimeout: _connectionTimeout).ToArray();
+            }
+        }
+		public FileModel[] GetUnProcessedFiles(List<string> entityType, int batchSize = 0)
+		{
+			List<FileModel> rez = new List<FileModel>();
+
+			foreach (string et in entityType)
+			{
+				using (var connection = new SqlConnection(_connectionString))
+				{
+					rez.AddRange(connection.Query<FileModel>(_filesGetProcedure, new { EntityType = et, batchSize }, commandType: CommandType.StoredProcedure, commandTimeout: _connectionTimeout));
+				}
+			}
+			return rez.ToArray();
+		}
+
+		/// <summary>
+		/// Обновляем статус файла
+		/// </summary>
+		/// <param name="IdFile">Ид файла</param>
+		/// <param name="status">Статус</param>
+		/// <param name="statusMessage">Комментарий к статусу</param>
+		public void UpdateFileStatus(int IdFile, FileLoadStatusEnum status, string statusMessage = "")
+        {
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                connection.Execute
+                    (
+                        @"update dbo.UnIntFileLoad 
+                            set LoadStatus = @LoadStatus, updateDate = getdate(), StatusMessage = @StatusMessage 
+                            where IdLoad = @IdLoad", 
+                        new { IdLoad = IdFile, LoadStatus = (int)status, StatusMessage = statusMessage },
+                        commandTimeout: _connectionTimeout
+                    );
+            }
+        }
+
+        /// <summary>
+        /// Обновляет статус файла, а так же увеличивается счётчик кол-ва итераций
+        /// </summary>
+        /// <param name="IdFile">Ид файла</param>
+        /// <param name="status">Статус</param>
+        /// <param name="statusMessage">Комментарий к статусу</param>
+        public void UpdateFileStatusWithCount(int IdFile, FileLoadStatusEnum status, string statusMessage = "")
+        {
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                connection.Execute
+                    (
+                        @"update dbo.UnIntFileLoad 
+                            set ProcCount = ProcCount + 1, LoadStatus = @Repeat, UpdateDate = getdate(), StatusMessage = @StatusMessage 
+                            where IdLoad = @IdFile"
+                        , new { IdFile, Repeat = (int)status, statusMessage },
+                        commandTimeout: _connectionTimeout
+                    );
+            }
+        }
+
+        /// <summary>
+        /// Проверяем файл на существование по имени + md5 иначе возвращаем 0
+        /// </summary>
+        /// <param name="FileName">Имя файла</param>
+        /// <param name="CheckSum">md5</param>
+        public int FindFile(string FileName, string CheckSum)
+        {
+            using (var connection = new SqlConnection(_connectionString))
+            {
+                return connection.Query<int>
+                   (
+                        "select IdLoad from dbo.UnIntFileLoad (NOLOCK) where fileName = @FileName and CheckSum = @CheckSum", 
+                        new { FileName, CheckSum },
+                        commandTimeout: _connectionTimeout
+                   ).FirstOrDefault();
+            }
+        }
+    }
+}
